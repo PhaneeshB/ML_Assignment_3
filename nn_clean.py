@@ -5,13 +5,6 @@ import time as t
 import sklearn.metrics as skm
 
 
-# part a One hot encoding
-# find out multivalued attributes
-# for every value of the multivalued attribute add a column in the data set
-# (Assuming that all possible values of the attribute
-# will always be in the training data)
-
-
 def get_data(file_train, file_test):
     train_data_temp = pd.read_csv(file_train, header=None)
     test_data_temp = pd.read_csv(file_test, header=None)
@@ -45,16 +38,6 @@ def get_data(file_train, file_test):
     return train_features, train_labels, test_features, test_labels
 
 
-# print(test_features[0:10])
-# print(test_features.columns)
-# print(len(test_features.columns))
-# 33
-# part B :Generic neural network
-# params: Batch Size for SGD, #inputs, #&size of hidden layers, #outputs
-# fully connected architecture
-# sigmoid activation unit
-
-
 def activation(X, type=1):
     # type 1 = sigmoid
     # type 2 = ReLU
@@ -84,8 +67,6 @@ def activation_diff(X, code=1):
         # for 0 the derivative will be zero
         return (X > 0).astype(int)
 
-# Takes input as a slice of features and labels
-# returns
 
 def feedforward(n_w, n_b, input, activation_type, layers):
 
@@ -108,6 +89,31 @@ def feedforward(n_w, n_b, input, activation_type, layers):
 
     return lin_layer, act_layer
 
+def del_computation(n_w, lin_layer, act_last, output_instance, layers, activation_type):
+      # ######----COMPUTE DEL------#######
+      # initialize list for all layers 
+      del_layer = [0 for i in range(len(layers))]
+
+      # #### Last (output) layer
+      # activation for the last layer will always be sigmoid 
+      
+      del_layer[-1] = (act_last - output_instance) * activation_diff(lin_layer[-1], 1)
+
+      # #### Hidden layers
+      for l in range(len(layers)-2, -1, -1):
+          del_layer[l] = ((n_w[l+1].T)@(del_layer[l+1])) * activation_diff(lin_layer[l], activation_type)
+
+      # for the entire batch you need to make the backprop for every example
+      # and then using the average of all the del values in the batch update the weights and biases.
+      # adjust weights
+      # make a function for back prop on one example.
+      # for using entire mini batch take average of del along rows
+      # adjust weights for learning rate alpha, eta whatever
+      # the del and activations must be of required dimensions and not already averaged ()np.mean(axis = 1, keepdims=True) )!
+      # averaging should be done here using npmean
+
+      return del_layer
+
 def backprop(network_weights, network_bias, input_instance, output_instance):
     # Add doc string
     return 0
@@ -115,16 +121,13 @@ def backprop(network_weights, network_bias, input_instance, output_instance):
 
 def gnn(batch_size, input_size, layers, output_size, features, labels, activation_type, learning_rate, iterations, tol=-1):
 
-    # output layer is part of the layers.s
     layers.append(output_size)
-    # create randomly initialized weight matrix for each layer
+
     network_weights = [np.random.random((layers[0], input_size))]
     network_bias = [np.random.random((layers[0], 1))]
-
     for i in range(1, len(layers)):
         network_weights.append(np.random.random((layers[i], layers[i-1])))
         network_bias.append(np.random.random((layers[i], 1)))
-    
     lr = learning_rate
 
     # FOR CHECKING PURPOSES # create randomly initialized weight matrix for each layer
@@ -135,106 +138,36 @@ def gnn(batch_size, input_size, layers, output_size, features, labels, activatio
     #     network_weights.append(np.zeros((layers[i], layers[i-1])))
     #     network_bias.append(np.zeros((layers[i], 1)))
 
-    # compute output for a given input, i.e., the activation for the last layer
-
-    # input_instance = np.zeros((input_size, 1))  # temporary features
-    # output_instance = np.zeros(output_size) # temporary label
-
-    # to run the entire data set for 100 iterations 
     training_error = []
     for iter in range(iterations):
         number_of_mini_batches = int(np.ceil(features.shape[0] / batch_size))
         for mb in range(number_of_mini_batches):
-            # no need to check because python doesn't give errors
-            # if((i+1) * batch_size < features.shape[0]):
-            
-            input_instance = features[mb * batch_size:(mb + 1) * batch_size].T
 
-            # output instance must be preprocessed to match the activation in the last layer!
+            input_instance = features[mb * batch_size:(mb + 1) * batch_size].T
             raw = labels[mb * batch_size:(mb + 1) * batch_size]
             output_instance = np.zeros((output_size, raw.shape[0]))
             for i in range(raw.shape[0]):
                 output_instance[raw[i][0]][i] = 1
-            # for i in raw
-            # no need to iterate over each example.
-            # we use matirx operations for the entire batch
-            # for ex in range(batch_size):
 
-            
             # ################-----FEED FORWARD-----##########################
 
             linearity_layer, activation_layer = feedforward(network_weights, network_bias, input_instance, activation_type, layers)
-            
-            # # just lists with required size
-            # linearity_layer = [np.zeros(1) for i in range(len(layers))]
-            # activation_layer = [np.zeros(1) for i in range(len(layers))]
 
-            # # first layer
-            # linearity_layer[0] = (network_weights[0] @ input_instance) + network_bias[0]
-            # activation_layer[0] = activation(linearity_layer[0], activation_type)
+            del_layer = del_computation(network_weights, linearity_layer, activation_layer[-1], output_instance, layers, activation_type)
 
-            # # middle layers (but the last)
-            # for l in range(1, len(layers)-1):
-            #     linearity_layer[l] = (network_weights[l] @ activation_layer[l-1]) + network_bias[l]
-            #     activation_layer[l] = activation(linearity_layer[l], activation_type)
-            
-            # # last layer (activation type to be sigmoid, always)
-            # l = len(layers) - 1
-            # linearity_layer[l] = (network_weights[l] @ activation_layer[l-1]) + network_bias[l]
-            # activation_layer[l] = activation(linearity_layer[l], 1)            
-
-
-            # final output 0-9 + 1
-            # print("prediction = " + str(np.argmax(activation_layer[-1], axis=0)))
-            # print("label      = " + str(np.argmax(labels[-1], axis=0)))
-
-            # ######----COMPUTE DEL------#######
-            # initialize list for all layers 
-            del_layer = [np.zeros((1, 1)) for i in range(len(layers))]
-
-            # #### Last (output) layer
-            # activation for the last layer will always be sigmoid 
-            del_layer[-1] = (activation_layer[-1] - output_instance) * activation_diff(linearity_layer[-1], 1)
-
-            # #### Hidden layers
-            for l in range(len(layers)-2, -1, -1):
-                del_layer[l] = ((network_weights[l+1].T)@(del_layer[l+1])) * activation_diff(linearity_layer[l], activation_type)
-            
-            # for the entire batch you need to make the backprop for every example
-            # and then using the average of all the del values in the batch update the weights and biases.
-            # adjust weights
-            # make a function for back prop on one example.
-            # for using entire mini batch take average of del along rows
-            # adjust weights for learning rate alpha, eta whatever
-            # the del and activations must be of required dimensions and not already averaged ()np.mean(axis = 1, keepdims=True) )!
-            # averaging should be done here using npmean
-
-            # adjust weights
             cost_minibatch = np.mean(np.sum(0.5 * (activation_layer[-1] - output_instance) ** 2, axis=0, keepdims=True))
-                
-            # prod = del_layer[0] @ input_instance.T
-            # bs = del_layer[0].shape[1]
-            # network_weights[0] = network_weights[0] - (lr * (prod)/bs)
-            
+            training_error.append(cost_minibatch)
+
             network_weights[0] = network_weights[0] - ((del_layer[0] @ input_instance.T) * lr / del_layer[0].shape[1])
             network_bias[0] = network_bias[0] - (lr * np.mean(del_layer[0], axis=1, keepdims=True))
             for l in range(1, len(layers)):
                 network_weights[l] = network_weights[l] - (lr * (del_layer[l] @ activation_layer[l -1].T)/ del_layer[l].shape[1])
                 network_bias[l] = network_bias[l] - (lr * np.mean(del_layer[l], axis=1, keepdims=True))
-            
-            # avg cost or error in prediction for the entire minibatch
-            # same as taking mean over the entire array
-            training_error.append(cost_minibatch)
+
             print(f'iter = {iter}, batch# = {mb}, average error = {cost_minibatch}')
 
         if(tol != -1 and training_error[-1] - training_error[-(number_of_mini_batches + 1)] < tol):
             lr /= 5
-
-
-    # final cost of prediction
-    # final output 0-9 + 1
-    # print("prediction = " + str(np.argmax(activation_layer[-1] + 1)))
-    # repeat
     return network_weights, network_bias, training_error
 
 
@@ -485,7 +418,7 @@ file_test = './PokerDataset/poker-hand-testing.data'
 
 batch_size = 25010
 input_layer = 85
-hidden_layer = [20,20,10,100]
+hidden_layer = [20, 40]
 output_layer = 10
 epochs = 100
 activation_type = 1
