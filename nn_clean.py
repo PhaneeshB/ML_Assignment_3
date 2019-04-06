@@ -15,10 +15,14 @@ def get_data(file_train, file_test):
 
     train_features = pd.DataFrame()
     test_features = pd.DataFrame()
+    # train_features = train_data_temp.iloc[:,:-1]
+    # test_features = test_data_temp.iloc[:,:-1]
 
     train_labels = train_data_temp.iloc[:, -1]
     test_labels = test_data_temp.iloc[:, -1]
 
+    f.open('dump_of_data.txt', 'a')
+    
     # can be made more readable
     for i in train_data_temp.columns:
         if i == 10:
@@ -29,11 +33,16 @@ def get_data(file_train, file_test):
             for k in suit:
                 label = str(str(card_num) + '_' + suit[k])
                 train_features[label] = (train_data_temp[i] == k).astype(int)
-                test_features[label] = (train_data_temp[i] == k).astype(int)
+                test_features[label] = (test_data_temp[i] == k).astype(int)
             for k in card:
                 label = str(str(card_num) + '_' + str(k))
-                train_features[label] = (test_data_temp[i+1] == k).astype(int)
+                train_features[label] = (train_data_temp[i+1] == k).astype(int)
                 test_features[label] = (test_data_temp[i+1] == k).astype(int)
+
+    f.write(train_features)
+    f.write(train_labels)
+    f.write(test_features)
+    f.write(test_labels)
 
     return train_features, train_labels, test_features, test_labels
 
@@ -122,27 +131,28 @@ def backprop(network_weights, network_bias, input_instance, output_instance):
 def gnn(batch_size, input_size, layers, output_size, features, labels, activation_type, learning_rate, iterations, tol=-1):
 
     layers.append(output_size)
+    lr = learning_rate
 
     network_weights = [np.random.random((layers[0], input_size))]
     network_bias = [np.random.random((layers[0], 1))]
     for i in range(1, len(layers)):
         network_weights.append(np.random.random((layers[i], layers[i-1])))
         network_bias.append(np.random.random((layers[i], 1)))
-    lr = learning_rate
 
     # FOR CHECKING PURPOSES # create randomly initialized weight matrix for each layer
     # network_weights = [np.zeros((layers[0], input_size))]
     # network_bias = [np.zeros((layers[0], 1))]
-
     # for i in range(1, len(layers)):
     #     network_weights.append(np.zeros((layers[i], layers[i-1])))
     #     network_bias.append(np.zeros((layers[i], 1)))
 
     training_error = []
     for iter in range(iterations):
+        
         number_of_mini_batches = int(np.ceil(features.shape[0] / batch_size))
+        batch_train_error = []
+        
         for mb in range(number_of_mini_batches):
-
             input_instance = features[mb * batch_size:(mb + 1) * batch_size].T
             raw = labels[mb * batch_size:(mb + 1) * batch_size]
             output_instance = np.zeros((output_size, raw.shape[0]))
@@ -151,23 +161,70 @@ def gnn(batch_size, input_size, layers, output_size, features, labels, activatio
 
             # ################-----FEED FORWARD-----##########################
 
-            linearity_layer, activation_layer = feedforward(network_weights, network_bias, input_instance, activation_type, layers)
+            linearity_layer, activation_layer = feedforward(network_weights, 
+                                                            network_bias, 
+                                                            input_instance, 
+                                                            activation_type, 
+                                                            layers)
 
-            del_layer = del_computation(network_weights, linearity_layer, activation_layer[-1], output_instance, layers, activation_type)
+            del_layer = del_computation(network_weights, 
+                                        linearity_layer, 
+                                        activation_layer[-1], 
+                                        output_instance, 
+                                        layers, 
+                                        activation_type)
+            
+            diff = activation_layer[-1] - output_instance
+            all_error = np.sum(0.5 * ((diff) ** 2), axis=0, keepdims=True)
+            cost_minibatch = np.mean(all_error)
+            # import math
+            # if(math.isnan(cost_minibatch)):
+            #     print('NAN found!!')
+            #     breakpoint
+            #     break        
+            # cost_minibatch = np.mean(np.sum(0.5 * (activation_layer[-1] - output_instance) ** 2, axis=0, keepdims=True))
+            # training_error.append(cost_minibatch)
 
-            cost_minibatch = np.mean(np.sum(0.5 * (activation_layer[-1] - output_instance) ** 2, axis=0, keepdims=True))
-            training_error.append(cost_minibatch)
+            batch_train_error.append(cost_minibatch)
+            x = (del_layer[0] @ input_instance.T)
+            
+            # logy = np.log10(np.max(x))
+            # if logy <= -3:
+            #     lr = np.power(10, -logy-2)
+            # else:
+            #     lr = learning_rate
 
-            network_weights[0] = network_weights[0] - ((del_layer[0] @ input_instance.T) * lr / del_layer[0].shape[1])
-            network_bias[0] = network_bias[0] - (lr * np.mean(del_layer[0], axis=1, keepdims=True))
+            nab_w = (x * lr / del_layer[0].shape[1])
+            nab_b = (lr * np.mean(del_layer[0], axis=1, keepdims=True))
+
+            network_weights[0] = network_weights[0] + nab_w
+            network_bias[0] = network_bias[0] + nab_b
+
+            # network_weights[0] = network_weights[0] - ((del_layer[0] @ input_instance.T) * lr / del_layer[0].shape[1])
+            # network_bias[0] = network_bias[0] - (lr * np.mean(del_layer[0], axis=1, keepdims=True))
             for l in range(1, len(layers)):
-                network_weights[l] = network_weights[l] - (lr * (del_layer[l] @ activation_layer[l -1].T)/ del_layer[l].shape[1])
-                network_bias[l] = network_bias[l] - (lr * np.mean(del_layer[l], axis=1, keepdims=True))
+                    
+                x = (del_layer[l] @ activation_layer[l -1].T)
+                # logy = np.log10(np.max(x))
+                # if logy <= -3:
+                #     lr = np.power(10, -logy-2)
+                # else:
+                #     lr = learning_rate
 
+                nab_w = (lr * x / del_layer[l].shape[1])
+                nab_b = (lr * np.mean(del_layer[l], axis=1, keepdims=True))
+
+                network_weights[l] = network_weights[l] + nab_w
+                network_bias[l] = network_bias[l] + nab_b
+
+                # network_weights[l] = network_weights[l] - (lr * (del_layer[l] @ activation_layer[l -1].T)/ del_layer[l].shape[1])
+                # network_bias[l] = network_bias[l] - (lr * np.mean(del_layer[l], axis=1, keepdims=True))
             print(f'iter = {iter}, batch# = {mb}, average error = {cost_minibatch}')
-
-        if(tol != -1 and training_error[-1] - training_error[-(number_of_mini_batches + 1)] < tol):
+        training_error.append(np.mean(batch_train_error))
+        print(f'###################--Train Error: {iter} = {training_error[-1]}')
+        if(tol != -1 and len(training_error) >=2 and training_error[-1] - training_error[-2] < tol):
             lr /= 5
+
     return network_weights, network_bias, training_error
 
 
@@ -194,10 +251,13 @@ def nn_prediciton(input_instance, n_w, n_b, activation_type):
     linearity_layer[0] = n_w[0] @ input_instance + n_b[0]
     activation_layer[0] = activation(linearity_layer[0], activation_type)
 
-    for l in range(1, len(n_w)):
+    for l in range(1, len(n_w)-1):
         linearity_layer[l] = n_w[l] @ activation_layer[l-1] + n_b[l]
         activation_layer[l] = activation(linearity_layer[l], activation_type)
-
+    
+    l = len(n_w)-1
+    linearity_layer[l] = n_w[l] @ activation_layer[l-1] + n_b[l]
+    activation_layer[l] = activation(linearity_layer[l], 1)
     # final output 0-9 for single instance of input
     if input_instance.shape[1] == 1:
         prediction = np.argmax(activation_layer[-1])
@@ -227,7 +287,7 @@ def accuracy(p, test_labels):
     return count*100.0/len(p)
 
 
-def part_c(file_trian, file_test, iter, tolerance, activation_diff):
+def part_c(file_trian, file_test, epochs, tolerance, activation_type):
 
     # number of iterations 
     # iter = 1000
@@ -236,9 +296,17 @@ def part_c(file_trian, file_test, iter, tolerance, activation_diff):
     # preprocessing the labels before sending!
     test_labels_array = np.array(test_labels).reshape((test_labels.shape[0], 1))
     train_labels_array = np.array(train_labels).reshape((train_labels.shape[0], 1))
+    
     test_features_array = np.array(test_features)
     train_features_array = np.array(train_features)
+    
     hidden_layer_size = [5,10,15,20,25]
+    batch_size = 100
+    input_layer = 85
+    output_layer = 10
+    activation_type = 1
+    learning_rate = 0.1
+
     accuracy_list_test = []
     accuracy_list_train = []
     error_list = []
@@ -246,20 +314,26 @@ def part_c(file_trian, file_test, iter, tolerance, activation_diff):
     confusion_matrix_list = []
     for h in hidden_layer_size:
         start = t.time()
-        n_weights, n_bias, err = gnn(25010,
-                                        85,
-                                        [h],
-                                        10,
-                                        train_features_array,
-                                        train_labels_array,
-                                        activation_type,
-                                        0.1,
-                                        iter,
-                                        tol=tolerance)
+        # n_weights, n_bias, err = gnn(25010,
+        #                                 85,
+        #                                 [h],
+        #                                 10,
+        #                                 train_features_array,
+        #                                 train_labels_array,
+        #                                 activation_type,
+        #                                 0.1,
+        #                                 iter,
+        #                                 tol=tolerance)
+
+
+        n_weights, n_bias, err = gnn(batch_size, input_layer, [h], 
+                                        output_layer, train_features_array, 
+                                        train_labels_array, activation_type,
+                                        learning_rate, epochs, tol=tolerance)
         end = t.time()
 
-        p = nn_prediciton(test_features_array.T, n_weights, n_bias)
-        p1 = nn_prediciton(train_features_array.T, n_weights, n_bias)
+        p = nn_prediciton(test_features_array.T, n_weights, n_bias, activation_type)
+        p1 = nn_prediciton(train_features_array.T, n_weights, n_bias, activation_type)
 
         acc_test = accuracy(p, test_labels_array)
         acc_train = accuracy(p1, train_labels_array)
@@ -267,7 +341,8 @@ def part_c(file_trian, file_test, iter, tolerance, activation_diff):
         accuracy_list_test.append(p)
         accuracy_list_train.append(p1)
         time_list.append(end-start)
-        error_list.append(err)
+        # error_list.append(err)
+        print(len(list(test_labels_array.flat)))
         confusion_matrix_list.append(skm.confusion_matrix(list(test_labels_array.flat), p))
     # Plot Test Accuracy
     x = hidden_layer_size
@@ -399,7 +474,7 @@ def part_d(file_trian, file_test, iter, tolerance, activation_type):
         print(f'Confusion Matrix for Hidden Layer Size = {hidden_layer_size}\n{confusion_matrix_list[i]}\n')
 
 
-def part_e(file_trian, file_test, tol):
+def part_e(file_trian, file_test, tol, activation_type):
 
     print('### PART C with adaptive learning rate ###')
     part_c(file_train, file_test, tol)
@@ -408,6 +483,8 @@ def part_e(file_trian, file_test, tol):
 
 
 def part_f(file_train, file_test, tol):
+    part_e(file_train, file_test)
+    
     return
 
 
@@ -415,14 +492,25 @@ def part_f(file_train, file_test, tol):
 
 file_train = './PokerDataset/poker-hand-training-true.data'
 file_test = './PokerDataset/poker-hand-testing.data'
+# file_train = './toy_train.csv'
+# file_test = './toy_train.csv'
 
-batch_size = 25010
+batch_size = 100
 input_layer = 85
-hidden_layer = [20, 40]
+hidden_layer = [20]
 output_layer = 10
-epochs = 100
+epochs = 2000
 activation_type = 1
-learning_rate = 0.1
+learning_rate = 10
+
+# batch_size = 100
+# input_layer = 3
+# hidden_layer = [7]
+# output_layer = 8
+# epochs = 10000
+# activation_type = 1
+# learning_rate = 0.5
+
 
 # for adaptive learning rate, add tol=RATE as a param
 
@@ -434,17 +522,21 @@ train_labels_array = np.array(train_labels).reshape((train_labels.shape[0], 1))
 test_features_array = np.array(test_features)
 train_features_array = np.array(train_features)
 
+# print(test_features_array)
+# print(test_labels_array)
 
 n_weights, n_bias, err = gnn(batch_size, input_layer, hidden_layer, 
                                 output_layer, train_features_array, 
                                 train_labels_array, activation_type,
-                                learning_rate, epochs )
+                                learning_rate, epochs, tol=0.001 )
 
-print(len(n_bias), len(n_weights))
+# print(f'Weights = {n_weights}')
+# print(f'Biases = {n_bias}')
+# print(len(n_bias), len(n_weights))
 
 # inst = test_features_array[0:1].T
-inst = test_features_array.T
-print(f'shape of inst = {inst.shape}')
+# inst = test_features_array.T
+# print(f'shape of inst = {inst.shape}')
 
 
 x = range(0, len(err))
@@ -459,10 +551,14 @@ plt.clf()
 # plt.show()
 
 # p = nn_prediciton(inst, n_weights, n_bias)
-p = nn_prediciton(inst, n_weights, n_bias, activation_type)
+p = nn_prediciton(test_features_array.T, n_weights, n_bias, activation_type)
 p1 = nn_prediciton(train_features_array.T, n_weights, n_bias, activation_type)
 
-print(f'prediction = {p}')
-print(f'prediction = {p1}')
+print(f'Test prediction set = {set(p)}')
+print(f'Train prediction set = {set(p1)}')
 print('Accuracy test = ' + str(accuracy(p, test_labels_array)))
 print('Accuracy train= ' + str(accuracy(p1, train_labels_array)))
+
+# part_c(file_train, file_test, epochs, -1, 1)
+
+# part_c(file_train, file_test, epochs, 1e-4, 1)
