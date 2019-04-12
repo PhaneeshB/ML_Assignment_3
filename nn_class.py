@@ -11,12 +11,19 @@ class Neural_Net():
         network.layers.append(output_size)
         network.learning_rate = learing_rate
         # create randomly initialized weight matrix for each layer
-        network.weights = [np.random.random((network.layers[0], input_size))]
-        network.bias = [np.random.random((network.layers[0], 1))]
+        network.weights = [np.random.uniform(-0.75, 0.75, (network.layers[0], input_size))]
+        network.bias = [np.random.uniform(-0.75, 0.75, (network.layers[0], 1))]
         for i in range(1, len(network.layers)):
-            network.weights.append(np.random.random((network.layers[i],
+            network.weights.append(np.random.uniform(-0.75, 0.75, (network.layers[i],
                                                      network.layers[i-1])))
-            network.bias.append(np.random.random((network.layers[i], 1)))
+            network.bias.append(np.random.uniform(-0.75, 0.75, (network.layers[i], 1)))
+    
+        # network.weights = [np.zeros((network.layers[0], input_size))]
+        # network.bias = [np.zeros((network.layers[0], 1))]
+        # for i in range(1, len(network.layers)):
+        #     network.weights.append(np.zeros((network.layers[i],
+        #                                              network.layers[i-1])))
+        #     network.bias.append(np.zeros((network.layers[i], 1)))
         
         network.batch_size = batch_size
         
@@ -85,7 +92,7 @@ class Neural_Net():
         # middle layears (but the last)
         for l in range(1, layer_length-1):
             network.temp_linearity[l] = (network.weights[l] @ network.temp_activation[l-1]) + network.bias[l]
-            network.temp_activation[l] = network.activation(network.temp_linearity[l], network.network.activation_type)
+            network.temp_activation[l] = network.activation(network.temp_linearity[l], network.activation_type)
 
         # last layer (network.activation type to be sigmoid, always)
         l = layer_length - 1
@@ -125,7 +132,8 @@ class Neural_Net():
             network.weights[l] -= delta_w
             network.bias[l] -= delta_b
 
-    def train_SGD(network, features, labels, epochs, train_data, test_data):
+    def train_SGD(network, features, labels, epochs, train_data, test_data,
+                  tol=-1, showAcc = False):
         # labels and features are already onehot encoded
         # one row is one example therefore take transpose.
 
@@ -134,7 +142,7 @@ class Neural_Net():
         test_acc = []
         pred_values = []
         for iter in range(epochs):
-            number_of_batches = int(np.ceil(features.shape[0] / batch_size))
+            number_of_batches = int(np.ceil(features.shape[0] / network.batch_size))
             batch_training_error = []
             
             for batch in range(number_of_batches):
@@ -160,17 +168,20 @@ class Neural_Net():
 
                 # error metrics collection
                 batch_training_error.append(cost_minibatch)
-                print(f'epoch# = {iter}, batch# = {batch}, average error = {cost_minibatch}')
+                # print(f'epoch# = {iter}, batch# = {batch}, average error = {cost_minibatch}')
 
             training_error.append(np.mean(batch_training_error))
-            if iter % 100 == 0:
-                pred_r, acc_train = network.prediction(train_data)
-                pred_s, acc_test = network.prediction(test_data)
+            print(f'epoch# = {iter}, average error = {training_error[-1]}')
+            
+            if (tol != -1 and len(training_error) >= 2 and np.abs(training_error[-2]-training_error[-1]) <= tol):
+                network.learning_rate /= 5.0
+
+            if showAcc and iter % 100 == 0:
+                pred_r, acc_train, _ = network.prediction(train_data)
+                pred_s, acc_test, _ = network.prediction(test_data)
                 train_acc.append(acc_train)
                 test_acc.append(acc_test)
-                pred_values.append((pred_r,pred_s))
-
-
+                pred_values.append((pred_r, pred_s))
 
         return training_error, train_acc, test_acc, pred_values
 
@@ -190,13 +201,13 @@ class Neural_Net():
             prediction_labels = list(x)
 
         count = 0
+        values = np.argmax(test_labels, axis = 0)
         for i in range(test_labels.shape[1]):
+            # values.append(int(np.where(test_labels[:,1]==1)[0]))
             if test_labels[:, i][prediction_labels[i]] == 1:
                 count += 1
-
-        return prediction_labels, count*100.0/test_labels.shape[1]
-
-
+        
+        return prediction_labels, count*100.0/test_labels.shape[1], values
 
 
 def plot(x, y, xlabel, ylabel, title):
@@ -208,38 +219,39 @@ def plot(x, y, xlabel, ylabel, title):
     plt.title(title)
     plt.show()
     plt.clf()
-########################### MAIN #########################
+
+# ########################### MAIN #########################
+
+# How to use this class
+
+# file_train = './PokerDataset/poker-hand-training-true.data'
+# file_test = './PokerDataset/poker-hand-testing.data'
+
+# train_data, test_data= enc.onehot_neural(file_train, file_test)
+# train_features = train_data.iloc[:, 0:85]
+# train_labels = train_data.iloc[:, 85:95]
+
+# batch_size = 100
+# input_layer = 85
+# hidden_layer = [20]
+# output_layer = 10
+# epochs = 1000
+# activation_type = 1
+# learning_rate = 0.1
 
 
+# net = Neural_Net(input_layer, hidden_layer, output_layer, batch_size,
+#                  learning_rate)
+# print('Obj created')
+# train_err, train_acc, test_acc, pred_values = net.train_SGD(np.array(train_features), np.array(train_labels), epochs, train_data, test_data, showAcc=True)
+# print('training done')
+# pred, acc, _ = net.prediction(train_data)
+# print(f'Accuracy Train= {acc}')
+# print(f'values = {set(pred)}')
+# pred, acc, _ = net.prediction(test_data)
+# print(f'Accuracy Test= {acc}')
+# print(f'values = {set(pred)}')
 
-
-file_train = './PokerDataset/poker-hand-training-true.data'
-file_test = './PokerDataset/poker-hand-testing.data'
-
-train_data, test_data= enc.onehot_neural(file_train, file_test)
-train_features = train_data.iloc[:, 0:85]
-train_labels = train_data.iloc[:, 85:95]
-print
-batch_size = 100
-input_layer = 85
-hidden_layer = [20]
-output_layer = 10
-epochs = 2000
-activation_type = 2
-learning_rate = 1
-
-net = Neural_Net(input_layer, hidden_layer, output_layer, batch_size,
-                 learning_rate)
-print('Obj created')
-train_err, train_acc, test_acc, pred_values = net.train_SGD(np.array(train_features), np.array(train_labels), epochs)
-print('training done')
-pred, acc = net.prediction(train_data)
-print(f'Accuracy Train= {acc}')
-print(f'values = {set(pred)}')
-pred, acc = net.prediction(test_data)
-print(f'Accuracy Test= {acc}')
-print(f'values = {set(pred)}')
-
-plot(list(range(epochs)), train_err, 'iter', 'error train', 'Hidden Layer ')
-plot(list(range(0, epochs, 100)), train_acc, 'Epoch#', 'Train Accuracy', 'For hidden layer 20')
-plot(list(range(0, epochs, 100)), test_acc, 'Epoch#', 'Test Accuracy', 'For Hidden layer 20')
+# plot(list(range(epochs)), train_err, 'iter', 'error train', 'Hidden Layer ')
+# plot(list(range(0, epochs, 100)), train_acc, 'Epoch#', 'Train Accuracy', 'For Hidden layer 20')
+# plot(list(range(0, epochs, 100)), test_acc, 'Epoch#', 'Test Accuracy', 'For Hidden layer 20')

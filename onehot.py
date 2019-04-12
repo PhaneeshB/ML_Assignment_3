@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 
+
 def onehot_neural(file_train, file_test):
 
     train_data_temp = pd.read_csv(file_train, header=None)
@@ -14,12 +15,11 @@ def onehot_neural(file_train, file_test):
     test_features = pd.DataFrame()
     train_features_file = pd.DataFrame()
     test_features_file = pd.DataFrame()
-    # train_features = train_data_temp.iloc[:,:-1]
-    # test_features = test_data_temp.iloc[:,:-1]
+    train_features = train_data_temp.iloc[:,:-1]
+    test_features = test_data_temp.iloc[:,:-1]
 
     train_labels = train_data_temp.iloc[:, -1]
     test_labels = test_data_temp.iloc[:, -1]
-
 
     # can be made more readable
     for i in train_data_temp.columns:
@@ -27,18 +27,18 @@ def onehot_neural(file_train, file_test):
             break
         if i % 2 == 0:
             card_num = int(i/2 + 1)
-            print('i = ' + str(i))
+            # print('i = ' + str(i))
             for k in suit:
                 label = str(str(card_num) + '_' + suit[k])
-                train_features[label] = (train_data_temp[i] == k).astype(int)
+                # train_features[label] = (train_data_temp[i] == k).astype(int)
                 train_features_file[label] = (train_data_temp[i] == k).astype(int)
-                test_features[label] = (test_data_temp[i] == k).astype(int)
+                # test_features[label] = (test_data_temp[i] == k).astype(int)
                 test_features_file[label] = (test_data_temp[i] == k).astype(int)
             for k in card:
                 label = str(str(card_num) + '_' + str(k))
-                train_features[label] = (train_data_temp[i+1] == k).astype(int)
+                # train_features[label] = (train_data_temp[i+1] == k).astype(int)
                 train_features_file[label] = (train_data_temp[i+1] == k).astype(int)
-                test_features[label] = (test_data_temp[i+1] == k).astype(int)
+                # test_features[label] = (test_data_temp[i+1] == k).astype(int)
                 test_features_file[label] = (test_data_temp[i+1] == k).astype(int)
 
     for i in range(10):
@@ -46,8 +46,8 @@ def onehot_neural(file_train, file_test):
         test_features_file[str(i)] = (test_labels == i).astype(int)
 
     # write to file train and test features file
-    
-    return train_features, train_labels, test_features, test_labels
+    # return train_features, train_labels, test_features, test_labels
+    return (train_features_file, test_features_file)
 
 
 def onehot_decision():
@@ -88,4 +88,4 @@ def onehot_decision():
             # add the column as it is 
             train_data_final[col] = train_data[col]
 
-return train_data_final
+    return train_data_final
